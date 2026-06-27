@@ -20,6 +20,7 @@ data_path = BASE_DIR / "data" / "DataCoSupplyChainDataset.csv"
 model_path = BASE_DIR / "models" / "hgb_model.pkl"
 features_path = BASE_DIR / "models" / "model_features.pkl"
 
+
 @st.cache_data
 def load_data():
     df = pd.read_csv(data_path, encoding="latin1")
@@ -39,11 +40,13 @@ def load_data():
 
     return df
 
+
 @st.cache_resource
 def load_model():
     model = joblib.load(model_path)
     model_features = joblib.load(features_path)
     return model, model_features
+
 
 df = load_data()
 model, model_features = load_model()
@@ -135,6 +138,7 @@ show_data_preview = st.sidebar.checkbox(
     value=True
 )
 
+# Apply filters
 filtered_df = df[
     (df["Market"].isin(market_filter)) &
     (df["Shipping Mode"].isin(shipping_filter)) &
@@ -149,31 +153,6 @@ filtered_df = df[
 if late_risk_only:
     filtered_df = filtered_df[filtered_df[target] == 1].copy()
 
-if search_term:
-    filtered_df = filtered_df[
-        filtered_df["Category Name"].astype(str).str.contains(
-            search_term,
-            case=False,
-            na=False
-        ) |
-        filtered_df["Order Region"].astype(str).str.contains(
-            search_term,
-            case=False,
-            na=False
-        )
-    ]
-
-st.subheader("Download Filtered Data")
-
-csv = filtered_df.to_csv(index=False).encode("utf-8")
-
-st.download_button(
-    label="Download Filtered Data as CSV",
-    data=csv,
-    file_name="filtered_late_delivery_data.csv",
-    mime="text/csv"
-)
-
 # Summary metrics
 st.subheader("Summary Metrics")
 
@@ -181,11 +160,37 @@ col1, col2, col3 = st.columns(3)
 
 total_orders = len(filtered_df)
 late_risk_rate = filtered_df[target].mean() * 100 if total_orders > 0 else 0
-avg_scheduled_days = filtered_df["Days for shipment (scheduled)"].mean() if total_orders > 0 else 0
+avg_scheduled_days = (
+    filtered_df["Days for shipment (scheduled)"].mean()
+    if total_orders > 0
+    else 0
+)
 
 col1.metric("Total Orders", f"{total_orders:,}")
 col2.metric("Late Delivery Risk Rate", f"{late_risk_rate:.2f}%")
 col3.metric("Average Scheduled Shipping Days", f"{avg_scheduled_days:.2f}")
+
+# Analytical risk alert
+st.subheader("Analytical Output: Delivery Risk Alert")
+
+if total_orders > 0:
+    if late_risk_rate >= 60:
+        st.error(
+            f"High late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
+    elif late_risk_rate >= 40:
+        st.warning(
+            f"Moderate late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
+    else:
+        st.success(
+            f"Lower late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
+else:
+    st.info("No data available for the selected filters.")
 
 # Interactive visualization selector
 st.subheader("Interactive Visualization")
@@ -195,12 +200,14 @@ chart_option = st.selectbox(
     [
         "Late Delivery Risk Rate by Shipping Mode",
         "Late Delivery Risk Rate by Market",
-        "Late Delivery Risk Distribution"
+        "Late Delivery Risk Distribution",
+        "Late Delivery Risk Rate by Order Region",
+        "Late Delivery Risk Rate by Category"
     ]
 )
 
 if filtered_df.empty:
-    st.warning("No data available for the selected filters.")
+    st.warning("No chart available because no data matches the selected filters.")
 
 else:
     if chart_option == "Late Delivery Risk Rate by Shipping Mode":
@@ -232,6 +239,29 @@ else:
 
         st.bar_chart(chart_data)
 
+    elif chart_option == "Late Delivery Risk Rate by Order Region":
+        chart_data = (
+            filtered_df.groupby("Order Region")[target]
+            .mean()
+            .mul(100)
+            .sort_values(ascending=False)
+            .head(10)
+        )
+
+        st.bar_chart(chart_data)
+
+    elif chart_option == "Late Delivery Risk Rate by Category":
+        chart_data = (
+            filtered_df.groupby("Category Name")[target]
+            .mean()
+            .mul(100)
+            .sort_values(ascending=False)
+            .head(10)
+        )
+
+        st.bar_chart(chart_data)
+
+# Top 10 high-risk segments
 if show_top_segments:
     st.subheader("Top 10 High-Risk Shipping Segments")
 
@@ -263,29 +293,10 @@ if show_top_segments:
             ascending=False
         ).head(10)
 
-        st.dataframe(high_risk_segments)
+        st.dataframe(high_risk_segments, use_container_width=True)
+
     else:
         st.info("No segment analysis available for the selected filters.")
-
-# Analytical risk alert
-st.subheader("Analytical Output: Delivery Risk Alert")
-
-if total_orders > 0:
-    if late_risk_rate >= 60:
-        st.error(
-            f"High late delivery risk detected. The current filtered data shows a "
-            f"late delivery risk rate of {late_risk_rate:.2f}%."
-        )
-    elif late_risk_rate >= 40:
-        st.warning(
-            f"Moderate late delivery risk detected. The current filtered data shows a "
-            f"late delivery risk rate of {late_risk_rate:.2f}%."
-        )
-    else:
-        st.success(
-            f"Lower late delivery risk detected. The current filtered data shows a "
-            f"late delivery risk rate of {late_risk_rate:.2f}%."
-        )
 
 # Predictive output
 st.subheader("Predictive Output: Late Delivery Risk Prediction")
@@ -301,7 +312,7 @@ if not filtered_df.empty:
     selected_order = filtered_df.iloc[[row_number]]
 
     st.write("Selected Order Features")
-    st.dataframe(selected_order[selected_features])
+    st.dataframe(selected_order[selected_features], use_container_width=True)
 
     model_input = selected_order[selected_features].copy()
 
@@ -322,7 +333,22 @@ if not filtered_df.empty:
     col4.metric("Predicted Late Delivery Risk", prediction_label)
     col5.metric("Predicted Late Risk Probability", f"{probability * 100:.2f}%")
 
+else:
+    st.info("Prediction is not available because no data matches the selected filters.")
+
+# Download filtered data
+st.subheader("Download Filtered Data")
+
+csv = filtered_df.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+    label="Download Filtered Data as CSV",
+    data=csv,
+    file_name="filtered_late_delivery_data.csv",
+    mime="text/csv"
+)
+
 # Data preview
-sif show_data_preview:
+if show_data_preview:
     st.subheader("Filtered Data Preview")
-    st.dataframe(filtered_df.head(100))
+    st.dataframe(filtered_df.head(100), use_container_width=True)
