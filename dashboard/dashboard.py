@@ -120,8 +120,19 @@ scheduled_range = st.sidebar.slider(
     value=(scheduled_min, scheduled_max)
 )
 
-search_term = st.sidebar.text_input(
-    "Search Category or Region"
+late_risk_only = st.sidebar.checkbox(
+    "Show only late-risk orders",
+    value=False
+)
+
+show_top_segments = st.sidebar.checkbox(
+    "Show top 10 high-risk segments",
+    value=True
+)
+
+show_data_preview = st.sidebar.checkbox(
+    "Show filtered data preview",
+    value=True
 )
 
 filtered_df = df[
@@ -134,6 +145,9 @@ filtered_df = df[
         scheduled_range[1]
     ))
 ].copy()
+
+if late_risk_only:
+    filtered_df = filtered_df[filtered_df[target] == 1].copy()
 
 if search_term:
     filtered_df = filtered_df[
@@ -218,33 +232,40 @@ else:
 
         st.bar_chart(chart_data)
 
-st.subheader("Top 10 High-Risk Shipping Segments")
+if show_top_segments:
+    st.subheader("Top 10 High-Risk Shipping Segments")
 
-if not filtered_df.empty:
-    high_risk_segments = (
-        filtered_df.groupby(["Market", "Shipping Mode", "Order Region"])[target]
-        .agg(["count", "mean"])
-        .reset_index()
-    )
+    if not filtered_df.empty:
+        high_risk_segments = (
+            filtered_df.groupby(["Market", "Shipping Mode", "Order Region"])[target]
+            .agg(["count", "mean"])
+            .reset_index()
+        )
 
-    high_risk_segments["Late Delivery Risk Rate (%)"] = (
-        high_risk_segments["mean"] * 100
-    ).round(2)
+        high_risk_segments["Late Delivery Risk Rate (%)"] = (
+            high_risk_segments["mean"] * 100
+        ).round(2)
 
-    high_risk_segments = high_risk_segments.rename(
-        columns={"count": "Number of Orders"}
-    )
+        high_risk_segments = high_risk_segments.rename(
+            columns={"count": "Number of Orders"}
+        )
 
-    high_risk_segments = high_risk_segments[
-        ["Market", "Shipping Mode", "Order Region", "Number of Orders", "Late Delivery Risk Rate (%)"]
-    ].sort_values(
-        by="Late Delivery Risk Rate (%)",
-        ascending=False
-    ).head(10)
+        high_risk_segments = high_risk_segments[
+            [
+                "Market",
+                "Shipping Mode",
+                "Order Region",
+                "Number of Orders",
+                "Late Delivery Risk Rate (%)"
+            ]
+        ].sort_values(
+            by="Late Delivery Risk Rate (%)",
+            ascending=False
+        ).head(10)
 
-    st.dataframe(high_risk_segments)
-else:
-    st.info("No segment analysis available for the selected filters.")
+        st.dataframe(high_risk_segments)
+    else:
+        st.info("No segment analysis available for the selected filters.")
 
 # Analytical risk alert
 st.subheader("Analytical Output: Delivery Risk Alert")
@@ -302,5 +323,6 @@ if not filtered_df.empty:
     col5.metric("Predicted Late Risk Probability", f"{probability * 100:.2f}%")
 
 # Data preview
-st.subheader("Filtered Data Preview")
-st.dataframe(filtered_df.head(100))
+sif show_data_preview:
+    st.subheader("Filtered Data Preview")
+    st.dataframe(filtered_df.head(100))
