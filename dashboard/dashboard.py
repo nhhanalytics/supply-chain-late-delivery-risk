@@ -160,15 +160,24 @@ col1, col2, col3 = st.columns(3)
 
 total_orders = len(filtered_df)
 late_risk_rate = filtered_df[target].mean() * 100 if total_orders > 0 else 0
-avg_scheduled_days = (
-    filtered_df["Days for shipment (scheduled)"].mean()
-    if total_orders > 0
-    else 0
-)
+if total_orders > 0:
+    avg_scheduled_days = filtered_df["Days for shipment (scheduled)"].mean()
+    avg_actual_days = filtered_df["Days for shipping (real)"].mean()
+    avg_delay_days = (
+        filtered_df["Days for shipping (real)"] -
+        filtered_df["Days for shipment (scheduled)"]
+    ).clip(lower=0).mean()
+else:
+    avg_scheduled_days = 0
+    avg_actual_days = 0
+    avg_delay_days = 0
+
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Total Orders", f"{total_orders:,}")
 col2.metric("Late Delivery Risk Rate", f"{late_risk_rate:.2f}%")
-col3.metric("Average Scheduled Shipping Days", f"{avg_scheduled_days:.2f}")
+col3.metric("Average Scheduled Days", f"{avg_scheduled_days:.2f}")
+col4.metric("Average Delay Days", f"{avg_delay_days:.2f}")
 
 # Analytical risk alert
 st.subheader("Analytical Output: Delivery Risk Alert")
