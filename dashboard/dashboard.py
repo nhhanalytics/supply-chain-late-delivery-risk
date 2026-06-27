@@ -13,7 +13,6 @@ st.title("Supply Chain Late Delivery Risk Dashboard")
 
 st.write(
     "This dashboard supports supply chain stakeholders in monitoring late delivery risk "
-    "using the original DataCo supply chain dataset and the best model from Q2."
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -82,22 +81,84 @@ selected_features = [
 # Sidebar filters
 st.sidebar.header("Filter Options")
 
+market_options = sorted(df["Market"].dropna().unique().tolist())
+shipping_options = sorted(df["Shipping Mode"].dropna().unique().tolist())
+region_options = sorted(df["Order Region"].dropna().unique().tolist())
+category_options = sorted(df["Category Name"].dropna().unique().tolist())
+
 market_filter = st.sidebar.multiselect(
     "Select Market",
-    options=sorted(df["Market"].dropna().unique()),
-    default=sorted(df["Market"].dropna().unique())
+    options=market_options,
+    default=market_options
 )
 
 shipping_filter = st.sidebar.multiselect(
     "Select Shipping Mode",
-    options=sorted(df["Shipping Mode"].dropna().unique()),
-    default=sorted(df["Shipping Mode"].dropna().unique())
+    options=shipping_options,
+    default=shipping_options
+)
+
+region_filter = st.sidebar.multiselect(
+    "Select Order Region",
+    options=region_options,
+    default=region_options
+)
+
+category_filter = st.sidebar.multiselect(
+    "Select Category",
+    options=category_options,
+    default=category_options
+)
+
+scheduled_min = int(df["Days for shipment (scheduled)"].min())
+scheduled_max = int(df["Days for shipment (scheduled)"].max())
+
+scheduled_range = st.sidebar.slider(
+    "Select Scheduled Shipping Days",
+    min_value=scheduled_min,
+    max_value=scheduled_max,
+    value=(scheduled_min, scheduled_max)
+)
+
+search_term = st.sidebar.text_input(
+    "Search Category or Region"
 )
 
 filtered_df = df[
     (df["Market"].isin(market_filter)) &
-    (df["Shipping Mode"].isin(shipping_filter))
+    (df["Shipping Mode"].isin(shipping_filter)) &
+    (df["Order Region"].isin(region_filter)) &
+    (df["Category Name"].isin(category_filter)) &
+    (df["Days for shipment (scheduled)"].between(
+        scheduled_range[0],
+        scheduled_range[1]
+    ))
 ].copy()
+
+if search_term:
+    filtered_df = filtered_df[
+        filtered_df["Category Name"].astype(str).str.contains(
+            search_term,
+            case=False,
+            na=False
+        ) |
+        filtered_df["Order Region"].astype(str).str.contains(
+            search_term,
+            case=False,
+            na=False
+        )
+    ]
+
+st.subheader("Download Filtered Data")
+
+csv = filtered_df.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+    label="Download Filtered Data as CSV",
+    data=csv,
+    file_name="filtered_late_delivery_data.csv",
+    mime="text/csv"
+)
 
 # Summary metrics
 st.subheader("Summary Metrics")
@@ -156,6 +217,54 @@ else:
         )
 
         st.bar_chart(chart_data)
+
+st.subheader("Top 10 High-Risk Shipping Segments")
+
+if not filtered_df.empty:
+    high_risk_segments = (
+        filtered_df.groupby(["Market", "Shipping Mode", "Order Region"])[target]
+        .agg(["count", "mean"])
+        .reset_index()
+    )
+
+    high_risk_segments["Late Delivery Risk Rate (%)"] = (
+        high_risk_segments["mean"] * 100
+    ).round(2)
+
+    high_risk_segments = high_risk_segments.rename(
+        columns={"count": "Number of Orders"}
+    )
+
+    high_risk_segments = high_risk_segments[
+        ["Market", "Shipping Mode", "Order Region", "Number of Orders", "Late Delivery Risk Rate (%)"]
+    ].sort_values(
+        by="Late Delivery Risk Rate (%)",
+        ascending=False
+    ).head(10)
+
+    st.dataframe(high_risk_segments)
+else:
+    st.info("No segment analysis available for the selected filters.")
+
+# Analytical risk alert
+st.subheader("Analytical Output: Delivery Risk Alert")
+
+if total_orders > 0:
+    if late_risk_rate >= 60:
+        st.error(
+            f"High late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
+    elif late_risk_rate >= 40:
+        st.warning(
+            f"Moderate late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
+    else:
+        st.success(
+            f"Lower late delivery risk detected. The current filtered data shows a "
+            f"late delivery risk rate of {late_risk_rate:.2f}%."
+        )
 
 # Predictive output
 st.subheader("Predictive Output: Late Delivery Risk Prediction")
