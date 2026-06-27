@@ -112,42 +112,50 @@ col1.metric("Total Orders", f"{total_orders:,}")
 col2.metric("Late Delivery Risk Rate", f"{late_risk_rate:.2f}%")
 col3.metric("Average Scheduled Shipping Days", f"{avg_scheduled_days:.2f}")
 
-# Visualization 1
-st.subheader("Visualization 1: Late Delivery Risk Rate by Shipping Mode")
+# Interactive visualization selector
+st.subheader("Interactive Visualization")
 
-if not filtered_df.empty:
-    risk_by_shipping = (
-        filtered_df.groupby("Shipping Mode")[target]
-        .mean()
-        .mul(100)
-        .sort_values(ascending=False)
-    )
-    st.bar_chart(risk_by_shipping)
-else:
+chart_option = st.selectbox(
+    "Select visualization to display",
+    [
+        "Late Delivery Risk Rate by Shipping Mode",
+        "Late Delivery Risk Rate by Market",
+        "Late Delivery Risk Distribution"
+    ]
+)
+
+if filtered_df.empty:
     st.warning("No data available for the selected filters.")
 
-# Visualization 2
-st.subheader("Visualization 2: Late Delivery Risk Rate by Market")
+else:
+    if chart_option == "Late Delivery Risk Rate by Shipping Mode":
+        chart_data = (
+            filtered_df.groupby("Shipping Mode")[target]
+            .mean()
+            .mul(100)
+            .sort_values(ascending=False)
+        )
 
-if not filtered_df.empty:
-    risk_by_market = (
-        filtered_df.groupby("Market")[target]
-        .mean()
-        .mul(100)
-        .sort_values(ascending=False)
-    )
-    st.bar_chart(risk_by_market)
+        st.bar_chart(chart_data)
 
-# Visualization 3
-st.subheader("Visualization 3: Late Delivery Risk Distribution")
+    elif chart_option == "Late Delivery Risk Rate by Market":
+        chart_data = (
+            filtered_df.groupby("Market")[target]
+            .mean()
+            .mul(100)
+            .sort_values(ascending=False)
+        )
 
-if not filtered_df.empty:
-    risk_distribution = (
-        filtered_df[target]
-        .map({0: "No Late Risk", 1: "Late Risk"})
-        .value_counts()
-    )
-    st.bar_chart(risk_distribution)
+        st.bar_chart(chart_data)
+
+    elif chart_option == "Late Delivery Risk Distribution":
+        chart_data = (
+            filtered_df[target]
+            .map({0: "No Late Risk", 1: "Late Risk"})
+            .value_counts()
+        )
+
+        st.bar_chart(chart_data)
 
 # Predictive output
 st.subheader("Predictive Output: Late Delivery Risk Prediction")
