@@ -243,6 +243,61 @@ if total_orders > 0:
 else:
     st.info("Monitoring metrics are not available because no data matches the selected filters.")
 
+# Data drift analysis
+st.subheader("Data Drift Analysis: Shipping Mode Distribution")
+
+if not filtered_df.empty:
+    reference_distribution = (
+        df["Shipping Mode"]
+        .value_counts(normalize=True)
+        .mul(100)
+        .rename("Reference Distribution (%)")
+    )
+
+    current_distribution = (
+        filtered_df["Shipping Mode"]
+        .value_counts(normalize=True)
+        .mul(100)
+        .rename("Current Distribution (%)")
+    )
+
+    drift_table = pd.concat(
+        [reference_distribution, current_distribution],
+        axis=1
+    ).fillna(0)
+
+    drift_table["Drift Difference (%)"] = (
+        drift_table["Current Distribution (%)"] -
+        drift_table["Reference Distribution (%)"]
+    ).abs()
+
+    drift_table = drift_table.round(2)
+
+    max_drift = drift_table["Drift Difference (%)"].max()
+
+    st.metric(
+        "Maximum Shipping Mode Drift Difference",
+        f"{max_drift:.2f}%"
+    )
+
+    st.dataframe(drift_table, use_container_width=True)
+
+    st.bar_chart(drift_table["Drift Difference (%)"])
+
+    if max_drift >= 10:
+        st.warning(
+            f"Potential data drift detected. The maximum shipping mode distribution "
+            f"difference is {max_drift:.2f}%."
+        )
+    else:
+        st.success(
+            f"No major data drift detected. The maximum shipping mode distribution "
+            f"difference is {max_drift:.2f}%."
+        )
+
+else:
+    st.info("Data drift analysis is not available because no data matches the selected filters.")
+
 # Analytical risk alert
 st.subheader("Analytical Output: Delivery Risk Alert")
 
