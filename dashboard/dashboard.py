@@ -188,9 +188,27 @@ if total_orders > 0:
         (filtered_df.shape[0] * filtered_df.shape[1])
     ) * 100
 
-    duplicate_records = filtered_df.duplicated().sum()
+    # Use a sample for model monitoring to avoid slowing down the dashboard
+    monitoring_sample = filtered_df[selected_features].head(5000).copy()
 
-    col_m1, col_m2, col_m3 = st.columns(3)
+    monitoring_input = pd.get_dummies(
+        monitoring_sample,
+        columns=categorical_features,
+        drop_first=True
+    )
+
+    monitoring_input = monitoring_input.reindex(
+        columns=model_features,
+        fill_value=0
+    )
+
+    monitoring_predictions = model.predict(monitoring_input)
+    monitoring_probabilities = model.predict_proba(monitoring_input)[:, 1]
+
+    predicted_late_risk_rate = monitoring_predictions.mean() * 100
+    average_predicted_probability = monitoring_probabilities.mean() * 100
+
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
     col_m1.metric(
         "Business Metric: Late Delivery Risk Rate",
@@ -203,8 +221,13 @@ if total_orders > 0:
     )
 
     col_m3.metric(
-        "Data Quality Metric: Duplicate Records",
-        f"{duplicate_records:,}"
+        "Model Metric: Predicted Late-Risk Rate",
+        f"{predicted_late_risk_rate:.2f}%"
+    )
+
+    col_m4.metric(
+        "Model Metric: Avg Predicted Risk Probability",
+        f"{average_predicted_probability:.2f}%"
     )
 
     if missing_value_rate > 5:
