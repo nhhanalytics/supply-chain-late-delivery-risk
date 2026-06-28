@@ -179,6 +179,47 @@ col2.metric("Late Delivery Risk Rate", f"{late_risk_rate:.2f}%")
 col3.metric("Average Scheduled Days", f"{avg_scheduled_days:.2f}")
 col4.metric("Average Delay Days", f"{avg_delay_days:.2f}")
 
+# Monitoring metrics
+st.subheader("Monitoring Metrics")
+
+if total_orders > 0:
+    missing_value_rate = (
+        filtered_df.isnull().sum().sum() /
+        (filtered_df.shape[0] * filtered_df.shape[1])
+    ) * 100
+
+    duplicate_records = filtered_df.duplicated().sum()
+
+    col_m1, col_m2, col_m3 = st.columns(3)
+
+    col_m1.metric(
+        "Business Metric: Late Delivery Risk Rate",
+        f"{late_risk_rate:.2f}%"
+    )
+
+    col_m2.metric(
+        "Data Quality Metric: Missing Value Rate",
+        f"{missing_value_rate:.2f}%"
+    )
+
+    col_m3.metric(
+        "Data Quality Metric: Duplicate Records",
+        f"{duplicate_records:,}"
+    )
+
+    if missing_value_rate > 5:
+        st.warning(
+            "Data quality warning: missing value rate is above 5%. "
+            "The data should be reviewed before further analysis."
+        )
+    else:
+        st.success(
+            "Data quality status: missing value rate is within an acceptable level."
+        )
+
+else:
+    st.info("Monitoring metrics are not available because no data matches the selected filters.")
+
 # Analytical risk alert
 st.subheader("Analytical Output: Delivery Risk Alert")
 
